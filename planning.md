@@ -137,13 +137,17 @@ Write out what a full user interaction looks like from start to finish — tool 
 **Example user query:** "I'm looking for a vintage graphic tee under $30. I mostly wear baggy jeans and chunky sneakers. What's out there and how would I style it?"
 
 **Step 1:**
+The agent is used to start trying to search the box. The search agent reads the contents in the listing. The agents parse the user query and the user query is added onto the search tools if needed. The content returns about 3-5 items with the batch tools which are the closest to our search embedding model.
 <!-- What does the agent do first? Which tool is called? With what input? -->
 
 **Step 2:**
+The returned result got 3-5 of the closest match items, using a recursive match/scoring algorithm that incorporates the data together (that weighs the words, the structural personal choice, prices --> the prices are seen). If the search returns nothing, it tells the user that there is nothing to be found and prompts the user to: maybe your prompt is specifically malformed, or there are nothing in the inventory. In other words, they are allowed to stop and find them again. The generation is used to describe the product for a responsible user.
 <!-- What happens next? What was returned from step 1? What tool is called now? -->
 
 **Step 3:**
+The fit card is produced --> it is produced for the user itself. The fit card consist of ways people share the outfit together, simulate the clothing together into the fit itself.
 <!-- Continue until the full interaction is complete -->
 
 **Final output to user:**
+A fit card, which consist of a short, catchy, Instagram-worthy, description of the outfit itself.
 <!-- What does the user actually see at the end? -->
