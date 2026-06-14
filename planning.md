@@ -15,6 +15,7 @@ You must have at least 3 tools. The three required tools are listed — add any 
 ### Tool 1: search_listings
 
 **What it does:**
+The tool searches the mock listings dataset for the best matches to the user's description, size, and price.
 <!-- Describe what this tool does in 1–2 sentences -->
 
 **Input parameters:**
@@ -136,18 +137,20 @@ Write out what a full user interaction looks like from start to finish — tool 
 
 **Example user query:** "I'm looking for a vintage graphic tee under $30. I mostly wear baggy jeans and chunky sneakers. What's out there and how would I style it?"
 
+FitFindr should first search the marketplace listings for the best matching item using the user's size and price constraints. If a listing is found, it should use that listing as the `new_item` and combine it with the user's wardrobe `items` to suggest an outfit, then turn the final outfit into a short fit-card caption. If no listings match, it should explain what to change in the search and stop without calling `suggest_outfit`.
+
 **Step 1:**
-The agent is used to start trying to search the box. The search agent reads the contents in the listing. The agents parse the user query and the user query is added onto the search tools if needed. The content returns about 3-5 items with the batch tools which are the closest to our search embedding model.
+Call `search_listings(description="vintage graphic tee", size="M", max_price=30.0)`. This searches `data/listings.json` for marketplace items that match the request and returns the best few listings, already filtered by the tool's rules.
 <!-- What does the agent do first? Which tool is called? With what input? -->
 
 **Step 2:**
-The returned result got 3-5 of the closest match items, using a recursive match/scoring algorithm that incorporates the data together (that weighs the words, the structural personal choice, prices --> the prices are seen). If the search returns nothing, it tells the user that there is nothing to be found and prompts the user to: maybe your prompt is specifically malformed, or there are nothing in the inventory. In other words, they are allowed to stop and find them again. The generation is used to describe the product for a responsible user.
+Take the top matching listing, for example `Faded Band Tee — $22, Depop, Good condition.` Use that listing as `new_item` and pass it together with the wardrobe object from `data/wardrobe_schema.json` into `suggest_outfit(new_item=..., wardrobe=...)`. If `search_listings` returns no results, stop here and tell the user to try a different size, price, or description.
 <!-- What happens next? What was returned from step 1? What tool is called now? -->
 
 **Step 3:**
-The fit card is produced --> it is produced for the user itself. The fit card consist of ways people share the outfit together, simulate the clothing together into the fit itself.
+Use the suggested outfit to call `create_fit_card(outfit=..., new_item=...)`. This generates the short, social-media-style caption that describes the full look in the user's voice.
 <!-- Continue until the full interaction is complete -->
 
 **Final output to user:**
-A fit card, which consist of a short, catchy, Instagram-worthy, description of the outfit itself.
+A fit card caption, such as: "thrifted this faded band tee off depop for $22 and honestly it was made for my wide-legs 🖤 full look in my stories"
 <!-- What does the user actually see at the end? -->
