@@ -20,14 +20,18 @@ The tool searches the mock listings dataset for the best matches to the user's d
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `description` (str): ...
-- `size` (str): ...
-- `max_price` (float): ...
+- `description` (str): description of the listing  
+- `size` (str): size of the clothes, with starting = S, M, L, XL, or other custom numbers
+- `max_price` (float): a number that represent a maximum price that it could pay
 
 **What it returns:**
+- Three best matches value that it could use for a match like this
+- I would think they will return a value that it could be returned: the description have to match with the description of the listing by cosine similarity rules. The sizes could be returned as all that matches the sizes --> there are special cases to not match all exact strings but get close enough search engine results
 <!-- Describe the return value — what fields does a result contain? -->
 
 **What happens if it fails or returns nothing:**
+- Do not hallucinate this, you should return that the search failed to find anything.
+- Add empty item in a wardrobe
 <!-- What should the agent do if no listings match? -->
 
 ---
@@ -35,17 +39,21 @@ The tool searches the mock listings dataset for the best matches to the user's d
 ### Tool 2: suggest_outfit
 
 **What it does:**
+
 <!-- Describe what this tool does in 1–2 sentences -->
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `new_item` (dict): ...
-- `wardrobe` (dict): ...
+- `new_item` (dict): a new item, returned from tool 1 as the best choice of purchase
+- `wardrobe` (dict): the original wardrobe that the user places
 
 **What it returns:**
+A specific ID of a outfit, embedded in a JSON code, matches the color of the string. Again, outfit is divided as ID, name (identification only), category, colors, style tags, 
 <!-- Describe the return value -->
 
 **What happens if it fails or returns nothing:**
+- If the wardrobe is empty, you should inform that nothing could be selected. You could suggest or search listing for other or prompt the user to search any other preferences.
+- The search return nothing close (the cosine similarity is low): you could return: I cannot find anything close to match any of your preferences, you should choose the next ones.
 <!-- What should the agent do if the wardrobe is empty or no outfit can be suggested? -->
 
 ---
