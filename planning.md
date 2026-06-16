@@ -86,7 +86,11 @@ If the outfit data is missing key pieces, the agent should not generate a captio
 ## Planning Loop
 
 **How does your agent decide which tool to call next?**
-<!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
+The agent first extracts the shopping intent from the user message: the item type or style, the requested size, and the maximum price. It always calls `search_listings` first, because the search result is the new item that everything else should be built around.
+
+If `search_listings` returns nothing, the loop stops immediately and the agent tells the user to adjust the description, size, or price limit. If a listing is returned, the agent saves it as `new_item` and calls `suggest_outfit` with that listing plus the user's wardrobe.
+
+If `suggest_outfit` cannot build a compatible outfit from the wardrobe, the loop stops and the agent explains that no valid outfit could be assembled yet. If an outfit is returned, the agent saves it as `outfit` and calls `create_fit_card` to generate the final caption. The loop ends once the caption is returned to the user.
 
 ---
 
