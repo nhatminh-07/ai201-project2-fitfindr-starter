@@ -98,6 +98,9 @@ If `suggest_outfit` cannot build a compatible outfit from the wardrobe, the loop
 
 **How does information from one tool get passed to the next?**
 <!-- Describe how your agent stores and accesses state within a session. What data is tracked? How is it passed between tool calls? -->
+The agent keeps a small session state object with the parsed user request, the selected `new_item`, the user's wardrobe, the suggested `outfit`, and the final `fit_card` text. `search_listings` reads the marketplace listing schema, while `suggest_outfit` reads the wardrobe schema, so the agent stores the chosen listing separately and passes only the needed fields into the next tool.
+
+The state flow is linear: parse the request, save the search filters, store the best listing returned by `search_listings`, pass that listing plus the wardrobe into `suggest_outfit`, then pass the returned outfit into `create_fit_card`. If any tool fails, the state does not advance and the agent returns the corresponding error message instead of inventing missing data.
 
 ---
 
@@ -115,14 +118,33 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 ## Architecture
 
-<!-- Draw a diagram of your agent showing how the components connect:
-     User input → Planning Loop → Tools (search_listings, suggest_outfit, create_fit_card)
-                                                                          ↕
-                                                                   State / Session
-     Show what triggers each tool, how state flows between them, and where error paths branch off.
-     ASCII art, a Mermaid diagram (https://mermaid.js.org/syntax/flowchart.html), or an embedded
-     sketch are all fine. You'll share this diagram with an AI tool when asking it to implement
-     the planning loop and each individual tool. -->
+```mermaid
+flowchart TD
+     A[User request] --> B[Parse description, size, max_price]
+     B --> C{Search listings}
+     C -->|matches found| D[Save best listing as new_item]
+     C -->|no matches| E[Tell user to adjust search and stop]
+     D --> F[Load wardrobe state]
+     F --> G{Suggest outfit}
+     G -->|outfit found| H[Save outfit]
+     G -->|no outfit| I[Explain wardrobe cannot support a look yet]
+     H --> J[Create fit card]
+     J --> K[Return caption to user]
+
+     subgraph Session_State
+          S1[parsed search filters]
+          S2[selected new_item]
+          S3[wardrobe items]
+          S4[suggested outfit]
+          S5[fit card text]
+     end
+
+     B -. stores .-> S1
+     D -. stores .-> S2
+     F -. reads .-> S3
+     H -. stores .-> S4
+     J -. stores .-> S5
+```
 
 ---
 
@@ -140,9 +162,19 @@ For each tool, describe the specific failure mode you're handling and what the a
      before trusting it" is a plan. -->
 
 **Milestone 3 — Individual tool implementations:**
+- I will use Copilot to implement each tool one at a time, starting with `search_listings` because it only depends on `load_listings()` from `utils/data_loader.py`.
+- For `search_listings`, I will give the tool spec from the Tools section plus the example marketplace fields from `data/listings.json`, and I expect a function that filters by description, size, and max price and returns the best matching listing dictionaries.
+- I will verify `search_listings` with at least three checks: one clear match, one borderline match, and one no-result case to confirm the failure path stops cleanly.
+- Next, I will give Copilot the `suggest_outfit` spec, the wardrobe schema, and the example wardrobe from `data/wardrobe_schema.json`, and I expect it to build a valid outfit from the selected listing plus wardrobe items.
+- I will verify `suggest_outfit` with a filled wardrobe and with `get_empty_wardrobe()` to confirm it returns an outfit in the first case and the empty-wardrobe failure path in the second.
+- Finally, I will give Copilot the `create_fit_card` spec plus a sample outfit object, and I expect a short caption string that mentions the selected item and outfit vibe.
+- I will verify `create_fit_card` by checking that it produces a short, readable caption and does not require extra missing fields.
 
 **Milestone 4 — Planning loop and state management:**
-
+- I will use Copilot to implement the planning loop after the tools are working, because the loop only needs to route between `search_listings`, `suggest_outfit`, and `create_fit_card`.
+- I will give it the Planning Loop, State Management, Error Handling, and Architecture sections from this document so the control flow matches the spec and Mermaid diagram.
+- I expect the loop to parse the user request, store `new_item` and `outfit` in session state, stop immediately when search returns nothing, and stop again if outfit creation fails.
+- I will verify the loop with a full happy-path example and two failure-path examples: one where search returns nothing and one where the wardrobe cannot produce an outfit.
 ---
 
 ## A Complete Interaction (Step by Step)

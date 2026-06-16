@@ -18,6 +18,8 @@ Usage (once implemented):
     print(result["error"])   # None on success
 """
 
+import re
+
 from tools import search_listings, suggest_outfit, create_fit_card
 
 
@@ -42,6 +44,87 @@ def _new_session(query: str, wardrobe: dict) -> dict:
         "outfit_suggestion": None,   # string returned by suggest_outfit
         "fit_card": None,            # string returned by create_fit_card
         "error": None,               # set if the interaction ended early
+    }
+
+
+def _parse_query(query: str) -> dict:
+    """Extract description, size, and max_price from a free-form query."""
+    cleaned_query = query.strip()
+    size = None
+    max_price = None
+
+    size_patterns = [
+        r"\bsize\s*[:=]?\s*(W\d+(?:\s*L\d+)?|\d+(?:/\d+)?|XXXL|XXL|XL|L|M|S|One Size)\b",
+    ]
+    for pattern in size_patterns:
+        match = re.search(pattern, cleaned_query, flags=re.IGNORECASE)
+        if match:
+            size = match.group(1)
+            break
+
+    price_patterns = [
+        r"(?:under|below|less than|max(?:imum)?(?: price)?)\s*\$?(\d+(?:\.\d+)?)",
+        r"\$?(\d+(?:\.\d+)?)\s*(?:or less|and under|max)",
+        r"\$?(\d+(?:\.\d+)?)\s*(?:to|\-|–)\s*\$?(\d+(?:\.\d+)?)",
+    ]
+    for pattern in price_patterns:
+        match = re.search(pattern, cleaned_query, flags=re.IGNORECASE)
+        if not match:
+            continue
+        if match.lastindex and match.lastindex >= 2 and match.group(2):
+            max_price = float(match.group(2))
+        else:
+            max_price = float(match.group(1))
+        break
+
+    description = cleaned_query
+    if size:
+        description = re.sub(rf"\bsize\s*[:=]?\s*{re.escape(size)}\b", "", description, flags=re.IGNORECASE)
+        description = re.sub(rf"\b{re.escape(size)}\b", "", description, flags=re.IGNORECASE)
+    if max_price is not None:
+        price_string = str(int(max_price)) if max_price.is_integer() else str(max_price)
+        description = re.sub(
+            rf"(?:under|below|less than|max(?:imum)?(?: price)?)\s*\$?{re.escape(price_string)}",
+            "",
+            description,
+            flags=re.IGNORECASE,
+        )
+        description = re.sub(
+            rf"\$?{re.escape(price_string)}\s*(?:or less|and under|max)",
+            "",
+            description,
+            flags=re.IGNORECASE,
+        )
+        description = re.sub(
+            rf"\$?{re.escape(price_string)}\s*(?:to|\-|–)\s*\$?\d+(?:\.\d+)?",
+            "",
+            description,
+            flags=re.IGNORECASE,
+        )
+
+    description = re.sub(
+        r"(?i)^\s*(i(?:'m)?\s+looking for|looking for|find me|show me|search for|need|want)\s+",
+        "",
+        description,
+    )
+    description = re.split(
+        r"\b(i mostly wear|what'?s out there|how would i style|what would you style|how should i style)\b",
+        description,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    description = re.sub(r"\s*,\s*", " ", description)
+    description = re.sub(r"\s+", " ", description).strip(" ,")
+    description = re.sub(r"^(?:a|an|the)\s+", "", description, flags=re.IGNORECASE)
+    description = description.rstrip(" .?!")
+
+    if not description:
+        description = cleaned_query
+
+    return {
+        "description": description,
+        "size": size,
+        "max_price": max_price,
     }
 
 
@@ -92,9 +175,42 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     Before writing code, complete the Planning Loop and State Management sections
     of planning.md — your implementation should match what you described there.
     """
-    # TODO: implement the planning loop
     session = _new_session(query, wardrobe)
-    session["error"] = "Planning loop not yet implemented."
+    parsed = _parse_query(query)
+    session["parsed"] = parsed
+
+    search_results = search_listings(
+        parsed["description"],
+        size=parsed["size"],
+        max_price=parsed["max_price"],
+    )
+    session["search_results"] = search_results
+
+    if not search_results:
+        session["error"] = (
+            "No listings matched that search. Try changing the description, "
+            "size, or max price."
+        )
+        return session
+
+    selected_item = search_results[0]
+    session["selected_item"] = selected_item
+
+    outfit_suggestion = suggest_outfit(selected_item, wardrobe)
+    session["outfit_suggestion"] = outfit_suggestion
+
+    if not outfit_suggestion or not outfit_suggestion.strip():
+        session["error"] = "Could not generate an outfit suggestion from the available wardrobe."
+        return session
+
+    fit_card = create_fit_card(outfit_suggestion, selected_item)
+    session["fit_card"] = fit_card
+
+    if not fit_card or not fit_card.strip():
+        session["error"] = "Could not generate a fit card from the outfit suggestion."
+        session["fit_card"] = None
+        return session
+
     return session
 
 
@@ -102,18 +218,22 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
 if __name__ == "__main__":
     from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
+    import os
 
-    print("=== Happy path: graphic tee ===\n")
-    session = run_agent(
-        query="looking for a vintage graphic tee under $30",
-        wardrobe=get_example_wardrobe(),
-    )
-    if session["error"]:
-        print(f"Error: {session['error']}")
+    if os.environ.get("GROQ_API_KEY"):
+        print("=== Happy path: graphic tee ===\n")
+        session = run_agent(
+            query="looking for a vintage graphic tee under $30",
+            wardrobe=get_example_wardrobe(),
+        )
+        if session["error"]:
+            print(f"Error: {session['error']}")
+        else:
+            print(f"Found: {session['selected_item']['title']}")
+            print(f"\nOutfit: {session['outfit_suggestion']}")
+            print(f"\nFit card: {session['fit_card']}")
     else:
-        print(f"Found: {session['selected_item']['title']}")
-        print(f"\nOutfit: {session['outfit_suggestion']}")
-        print(f"\nFit card: {session['fit_card']}")
+        print("=== Happy path skipped: GROQ_API_KEY is not set ===\n")
 
     print("\n\n=== No-results path ===\n")
     session2 = run_agent(
